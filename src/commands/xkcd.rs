@@ -27,21 +27,23 @@ pub struct Comic {
 }
 
 #[command]
-#[description = "Post the xkcd comic specified"]
+#[description = "Post the xkcd comic. Either by comic id or by search text (alt/title)"]
+#[usage = "(xkcd_id|search_text)"]
 #[example = "547"]
+#[example = "tables"]
 #[num_args(1)]
-pub async fn xkcd(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
+pub async fn xkcd(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     let xkcd_query = args.rest();
 
     // let reqwest_client = &util::get_reqwest_client(&ctx).await?;
     // try to load index
 
-    let index = XKCD_INDEX.get().ok_or("index not initialized")?;
+    let index = XKCD_INDEX.get().ok_or("Index not initialized")?;
     let searcher = XKCD_INDEX_READER
         .get()
-        .ok_or("index reader not initialized")?
+        .ok_or("Index reader not initialized")?
         .searcher();
-    let schema = XKCD_INDEX_SCHEMA.get().ok_or("schema not initialized")?;
+    let schema = XKCD_INDEX_SCHEMA.get().ok_or("Schema not initialized")?;
 
     let number = schema.get_field("number").unwrap();
     let title = schema.get_field("title").unwrap();
@@ -57,16 +59,16 @@ pub async fn xkcd(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult
 
         let top_docs = searcher
             .search(&query, &TopDocs::with_limit(1))
-            .map_err(|e| format!("failed index search"))?;
+            .map_err(|e| format!("Failed index search: {:?}", e))?;
 
         top_docs
     };
 
-    let (_, doc_address) = top_docs.pop().ok_or("nothing found")?;
+    let (_, doc_address) = top_docs.pop().ok_or("Nothing found")?;
 
     let retrieved_doc = searcher
         .doc(doc_address)
-        .map_err(|e| format!("doc does not exist: {:?}", e))?;
+        .map_err(|e| format!("Doc does not exist: {:?}", e))?;
 
     let title = retrieved_doc.get_first(title).unwrap().text().unwrap();
     let alt = retrieved_doc.get_first(alt).unwrap().text().unwrap();
@@ -100,13 +102,13 @@ pub async fn xkcd(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult
 
 #[command]
 #[owners_only]
-pub async fn index_xkcd(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
+pub async fn index_xkcd(ctx: &Context, msg: &Message) -> CommandResult {
     let xkcd_index_path = ctx
         .data
         .read()
         .await
         .get::<crate::Config>()
-        .ok_or("failed to access config")?
+        .ok_or("Failed to access config")?
         .xkcd_index
         .clone();
 
@@ -128,7 +130,7 @@ pub async fn index_xkcd(ctx: &Context, msg: &Message, mut args: Args) -> Command
 
     let schema = XKCD_INDEX_SCHEMA
         .get()
-        .ok_or("index schema not init")?
+        .ok_or("Index schema not init")?
         .clone();
 
     let index = if std::path::Path::new(&xkcd_index_path).is_dir() {
@@ -144,7 +146,7 @@ pub async fn index_xkcd(ctx: &Context, msg: &Message, mut args: Args) -> Command
 
     let mut index_writer = index
         .writer(50_000_000)
-        .map_err(|e| format!("failed to create index writer: {:?}", e))?;
+        .map_err(|e| format!("Failed to create index writer: {:?}", e))?;
 
     let title = schema.get_field("title").unwrap();
     let alt = schema.get_field("alt").unwrap();
@@ -201,7 +203,7 @@ pub async fn index_xkcd(ctx: &Context, msg: &Message, mut args: Args) -> Command
         let mut write = ctx.data.write().await;
         let index_state = write
             .get_mut::<crate::XkcdState>()
-            .ok_or("failed to acces xkcd index state")?;
+            .ok_or("Failed to acces xkcd index state")?;
         index_state.indexed = newest_comic.num + 1;
         index_state.save();
     }
@@ -210,7 +212,7 @@ pub async fn index_xkcd(ctx: &Context, msg: &Message, mut args: Args) -> Command
         .channel_id
         .say(
             &ctx,
-            &format!("completed indexing up to {}", newest_comic.num),
+            &format!("Completed indexing up to {}", newest_comic.num),
         )
         .await?;
 

@@ -94,29 +94,23 @@ pub fn humanize_duration(duration: &Duration) -> String {
     }
 }
 
-// lazy_static::lazy_static! {
-//     static ref MESSAGE_LINK_REGEX: Regex =
-//         Regex::new(r#"https://(?:discord.com|discordapp.com)/channels/(\d+)/(\d+)/(\d+)"#)
-//             .expect("could not compile quote link regex");
-// }
-
 pub fn parse_message_link(regex: &Regex, link: &str) -> Result<(u64, u64, u64), String> {
     let caps = regex.captures(link).ok_or("No captures, invalid link?")?;
     let server_id = caps
         .get(1)
         .map_or("", |m| m.as_str())
         .parse::<u64>()
-        .map_err(|_| "failed parsing to u64")?;
+        .map_err(|_| "Failed parsing to u64")?;
     let channel_id = caps
         .get(2)
         .map_or("", |m| m.as_str())
         .parse::<u64>()
-        .map_err(|_| "failed parsing to u64")?;
+        .map_err(|_| "Failed parsing to u64")?;
     let msg_id = caps
         .get(3)
         .map_or("", |m| m.as_str())
         .parse::<u64>()
-        .map_err(|_| "failed parsing to u64")?;
+        .map_err(|_| "Failed parsing to u64")?;
 
     Ok((server_id, channel_id, msg_id))
 }

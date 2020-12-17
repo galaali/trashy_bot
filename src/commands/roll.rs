@@ -7,9 +7,11 @@ use serenity::{
 use tracing::error;
 
 #[command]
-#[description = "Roll x dice with y sides"]
+#[description = "Roll some dice"]
 #[num_args(2)]
+#[usage = "*number_of_dice* *number_of_sides*"]
 #[example = "1 6"]
+#[example = "6 12"]
 async fn roll(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
     let amount_of_dice = args.single::<u64>()?;
     let number_of_eyes = args.single::<u64>()?;

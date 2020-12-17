@@ -4,10 +4,8 @@ use crate::models::tag::Tag;
 use crate::util;
 use crate::util::get_client;
 use crate::OptOut;
-use futures::future::TryFutureExt;
 use itertools::Itertools;
 use rand::prelude::*;
-use regex::Regex;
 use serenity::futures::stream::StreamExt;
 use serenity::model::{channel::Attachment, channel::ReactionType, id::ChannelId};
 use serenity::prelude::*;
@@ -22,6 +20,7 @@ use tracing::{debug, trace};
 
 #[command]
 #[description = "Post a fav"]
+#[usage = "*tag*"]
 #[example = "taishi wichsen"]
 #[bucket = "fav"]
 pub async fn post(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
@@ -477,6 +476,10 @@ pub async fn block(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
         .collect::<Vec<_>>()
         .await;
 
+    let _ = msg
+        .react(ctx, ReactionType::Unicode("✅".to_string()))
+        .await;
+
     Ok(())
 }
 
@@ -484,7 +487,7 @@ pub async fn block(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 #[only_in("guilds")]
 #[description = "Creates a list of all favs on the server"]
 #[allowed_roles("Mods")]
-pub async fn create_fav_list(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
+pub async fn create_fav_list(ctx: &Context, msg: &Message) -> CommandResult {
     use tokio::io::{AsyncWriteExt, BufWriter};
     let pool = get_client(&ctx).await?;
 
@@ -505,16 +508,25 @@ pub async fn create_fav_list(ctx: &Context, msg: &Message, args: Args) -> Comman
     let mut out_buf = BufWriter::new(outfile);
 
     for fav in favs {
-        let fav_msg = ChannelId(fav.channel_id as u64)
+        if let Ok(fav_msg) = ChannelId(fav.channel_id as u64)
             .message(&ctx, fav.msg_id as u64)
-            .await?;
+            .await
+        {
+            let line = format!(
+                "https://discord.com/channels/{}/{}/{};{};{}\n",
+                fav.server_id as u64,
+                fav.channel_id as u64,
+                fav.msg_id as u64,
+                fav_msg.content,
+                fav_msg
+                    .attachments
+                    .first()
+                    .map(|a| a.url.clone())
+                    .unwrap_or("No image".to_string()),
+            );
 
-        let line = format!(
-            "https://discord.com/channels/{}/{}/{} | {}\n",
-            fav.server_id as u64, fav.channel_id as u64, fav.msg_id as u64, fav_msg.content
-        );
-
-        out_buf.write(line.as_bytes()).await?;
+            let _ = out_buf.write(line.as_bytes()).await;
+        }
     }
 
     out_buf.flush().await?;

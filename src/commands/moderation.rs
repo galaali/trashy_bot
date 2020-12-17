@@ -3,7 +3,6 @@ use crate::models::mute::Mute;
 use crate::models::server_config::ServerConfig;
 use crate::util;
 use crate::util::get_client;
-use crate::DatabasePool;
 use chrono::{Duration, Utc};
 use futures::future::join_all;
 use futures::{stream, StreamExt};
@@ -258,7 +257,7 @@ pub async fn unmute(ctx: &Context, msg: &Message, _args: Args) -> CommandResult 
                                 let _ = member.remove_role(&ctx, RoleId(*mute_role));
                                 found_members.push(member);
                             }
-                            Err(e) => error!("could not get member: {:?}", e),
+                            Err(e) => error!("Could not get member: {:?}", e),
                         };
                     }
 
@@ -286,7 +285,7 @@ pub async fn unmute(ctx: &Context, msg: &Message, _args: Args) -> CommandResult 
                 }
             }
             Err(_e) => {
-                msg.reply(ctx, "server config missing").await?;
+                msg.reply(ctx, "Server config missing").await?;
             }
         }
     }
@@ -329,7 +328,7 @@ pub async fn kick(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
                     .await;
             }
             Err(_e) => {
-                let _ = msg.reply(ctx, "server config missing").await;
+                let _ = msg.reply(ctx, "Server config missing").await;
             }
         }
     }
@@ -372,7 +371,7 @@ pub async fn ban(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
                     .await;
             }
             Err(_e) => {
-                let _ = msg.reply(ctx, "server config missing").await;
+                let _ = msg.reply(ctx, "Server config missing").await;
             }
         }
     }
