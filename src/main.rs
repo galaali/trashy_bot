@@ -24,6 +24,7 @@ mod util;
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 use serenity::{
+    client::bridge::gateway::GatewayIntents,
     client::bridge::gateway::ShardManager,
     client::Context,
     framework::standard::{
@@ -196,7 +197,7 @@ async fn normal_message(_ctx: &Context, msg: &Message) {
 #[hook]
 async fn dispatch_error(ctx: &Context, msg: &Message, error: DispatchError) {
     match error {
-        DispatchError::Ratelimited(duration) => {
+        DispatchError::Ratelimited(info) => {
             let _ = msg
                 .channel_id
                 .say(
@@ -204,7 +205,7 @@ async fn dispatch_error(ctx: &Context, msg: &Message, error: DispatchError) {
                     &format!(
                         "Try again in {}",
                         util::humanize_duration(
-                            &chrono::Duration::from_std(duration)
+                            &chrono::Duration::from_std(info.rate_limit)
                                 .unwrap_or(chrono::Duration::zero())
                         )
                     ),
@@ -290,6 +291,7 @@ async fn main() {
         .cache_update_timeout(std::time::Duration::from_millis(500))
         .event_handler(handler::Handler)
         .framework(framework)
+        .intents(GatewayIntents::all())
         .await
         .expect("Err creating client");
 
