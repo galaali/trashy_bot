@@ -5,7 +5,28 @@ use serenity::{
     framework::standard::{macros::command, Args, CommandResult},
     model::channel::Message,
 };
-use tracing::info;
+use tracing::{error, info};
+
+#[command]
+#[description = "Remove Accoutns for user_id"]
+#[usage = "*discord_user_id*"]
+#[num_args(1)]
+#[only_in("guilds")]
+#[allowed_roles("Mods")]
+pub async fn delete(ctx: &Context, msg: &Message, _args: Args) -> CommandResult {
+    let pool = get_client(&ctx).await?;
+    match Lastfm::delete(&pool, *msg.author.id.as_u64() as i64).await {
+        Ok(n) => {
+            msg.reply(ctx, format!("Removed {} entries for this user ", n))
+                .await?;
+        }
+        Err(e) => {
+            error!(?e, "failed to remove user lastfm");
+        }
+    }
+
+    Ok(())
+}
 
 #[command]
 #[description = "Link your lastfm account to your discord account"]
@@ -54,7 +75,7 @@ pub async fn now(ctx: &Context, msg: &Message, _args: Args) -> CommandResult {
         .clone();
 
     // prepare for the lastfm api
-    let url = format!("http://ws.audioscrobbler.com/2.0/?method=user.getrecenttracks&user={}&api_key={}&format=json",
+    let url = format!("http://ws.audioscrobbler.com/2.0/?method=user.getrecenttracks&user={}&api_key={}&format=json&limit=1",
             lastfm.username,
             &lastfm_api_key);
 
@@ -72,25 +93,45 @@ pub async fn now(ctx: &Context, msg: &Message, _args: Args) -> CommandResult {
                 .unwrap_or("")
                 == "true"
             {
-                let content = format!(
-                    "Artist: {} - {}",
-                    t.pointer("/artist/#text")
-                        .and_then(|a| a.as_str())
-                        .unwrap_or("Unknown Artist"),
-                    t.pointer("/name")
-                        .and_then(|a| a.as_str())
-                        .unwrap_or("Unknown Title")
-                );
+                let thumbnail_url = t
+                    .pointer("/image")
+                    .and_then(|a| a.as_array())
+                    .and_then(|a| a.get(2))
+                    .and_then(|v| v.pointer("/#text"))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
 
                 msg.channel_id
                     .send_message(&ctx, |m| {
                         m.embed(|e| {
-                            e.description(&content).footer(|f| {
-                                f.text(format!(
-                                    "Lastfm response took: {}ms",
-                                    request_time.as_millis()
-                                ))
-                            })
+                            e.thumbnail(thumbnail_url)
+                                .field(
+                                    "Artist",
+                                    t.pointer("/artist/#text")
+                                        .and_then(|a| a.as_str())
+                                        .unwrap_or("Unknown Artist"),
+                                    false,
+                                )
+                                .field(
+                                    "Album",
+                                    t.pointer("/album/#text")
+                                        .and_then(|a| a.as_str())
+                                        .unwrap_or("Unknown Album"),
+                                    false,
+                                )
+                                .field(
+                                    "Title",
+                                    t.pointer("/name")
+                                        .and_then(|a| a.as_str())
+                                        .unwrap_or("Unknown Title"),
+                                    false,
+                                )
+                                .footer(|f| {
+                                    f.text(format!(
+                                        "Lastfm response took: {}ms",
+                                        request_time.as_millis()
+                                    ))
+                                })
                         })
                     })
                     .await?;
@@ -340,13 +381,9 @@ pub async fn tracks(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     let mut content = String::new();
 
     if let Some(tracks) = res.pointer("/toptracks/track").and_then(|a| a.as_array()) {
-        let mut overall = 0;
         for t in tracks {
             let playcount = t.pointer("/playcount").and_then(|a| a.as_str());
 
-            overall += playcount
-                .map(|x| x.parse::<i32>().unwrap_or(0))
-                .unwrap_or(0);
             content.push_str(&format!(
                 "Rank: {} | Played: {} | {} - {}\n",
                 t.pointer("/@attr/rank")
@@ -361,7 +398,6 @@ pub async fn tracks(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
                     .unwrap_or("Unknown Track"),
             ));
         }
-        content.push_str(&format!("Overall scrobbles: {}\n", overall));
     }
 
     msg.channel_id
